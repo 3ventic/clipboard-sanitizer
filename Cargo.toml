@@ -1,0 +1,14 @@
+[package]
+name = "clipboard-sanitizer"
+version = "0.1.0"
+edition = "2021"
+authors = ["Werner Vänttinen <ventic@3v.fi>"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+arboard = "3.2.1"
+clap = { version = "4.4.4", features = ["derive"] }
+env_logger = "0.10.0"
+log = "0.4.20"
+url = "2.4.1"

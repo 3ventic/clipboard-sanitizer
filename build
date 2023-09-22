@@ -1,0 +1,34 @@
+#!/bin/bash
+
+DIR="./tmp"
+mkdir -p $DIR
+
+targets=(
+	"x86_64-unknown-linux-gnu"
+	"x86_64-pc-windows-gnu"
+	"i686-unknown-linux-gnu"
+)
+
+for target in "${targets[@]}"; do
+	$HOME/.cargo/bin/cargo build --target $target --release
+	mkdir -p $DIR/$target
+	cp target/$target/release/clipboard-sanitizer* $DIR/$target
+	if [ "$target" == "x86_64-pc-windows-gnu" ]; then
+		osslsigncode sign \
+			-pkcs12 "$CERTIFICATE_FILE" \
+			-pass "$CERTIFICATE_PASSWORD" \
+			-n "clipboard-sanitizer" \
+			-i http://timestamp.digicert.com \
+			-t http://timestamp.digicert.com \
+			-h sha2 \
+			-in $DIR/$target/clipboard-sanitizer.exe \
+			-out $DIR/$target/clipboard-sanitizer-signed.exe && \
+		rm $DIR/$target/clipboard-sanitizer.exe && \
+		mv $DIR/$target/clipboard-sanitizer-signed.exe $DIR/$target/clipboard-sanitizer.exe
+		cd $DIR/$target
+		zip ../$target.zip clipboard-sanitizer.exe
+		cd ../..
+	else
+		tar -czvf $DIR/$target.tar.gz -C $DIR/$target clipboard-sanitizer
+	fi
+done
