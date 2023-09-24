@@ -26,9 +26,9 @@ for target in "${targets[@]}"; do
 		rm $DIR/$target/clipboard-sanitizer.exe && \
 		mv $DIR/$target/clipboard-sanitizer-signed.exe $DIR/$target/clipboard-sanitizer.exe
 		cd $DIR/$target
-		zip ../$target.zip clipboard-sanitizer.exe
+		zip ../clipboard-sanitizer-$target.zip clipboard-sanitizer.exe
 		cd ../..
 	else
-		tar -czvf $DIR/$target.tar.gz -C $DIR/$target clipboard-sanitizer
+		tar -czvf $DIR/clipboard-sanitizer-$target.tar.gz -C $DIR/$target clipboard-sanitizer
 	fi
 done
