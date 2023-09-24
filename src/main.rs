@@ -16,8 +16,12 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use std::collections::HashMap;
+
 use arboard::Clipboard;
 use clap::Parser;
+use config::Config;
+use dirs::config_dir;
 use log::{debug, error, info};
 use url::Url;
 
@@ -38,11 +42,16 @@ struct Args {
     verbosity: String,
 }
 
+static mut APP_CONFIG: Option<HashMap<String, String>> = None;
+
 fn main() {
     let args = Args::parse();
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(args.verbosity))
         .init();
+
+    init_settings();
+
     let mut clipboard = Clipboard::new().unwrap();
 
     loop {
@@ -60,6 +69,63 @@ fn main() {
 
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
+}
+
+fn init_settings() {
+    // Use of unsafe in this function is justified because we are writing the config once before reading it
+
+    let mut config_path = config_dir().unwrap();
+    config_path.push("clipboard-sanitizer");
+
+    let default_config: HashMap<String, String> = HashMap::new();
+
+    // path doesn't exist
+    if config_path.is_dir() == false {
+        let res = std::fs::create_dir_all(&config_path);
+        if let Err(e) = res {
+            error!(
+                "Failed to create config directory {:?}: {:?}",
+                config_path, e
+            );
+            unsafe { APP_CONFIG = Some(default_config) };
+            return;
+        }
+        let res = std::fs::write(config_path.join("config.toml"), "");
+        if let Err(e) = res {
+            error!(
+                "Failed to create config file {:?}: {:?}",
+                config_path.join("config.toml"),
+                e
+            );
+            unsafe { APP_CONFIG = Some(default_config) };
+            return;
+        }
+    }
+
+    let cfg = Config::builder()
+        .add_source(config::File::from(config_path.join("config.toml")))
+        .add_source(config::Environment::with_prefix("CLIPBOARD_SANITIZER"))
+        .build()
+        .unwrap();
+
+    let map = cfg.try_deserialize::<HashMap<String, String>>().unwrap();
+    info!("Using config: {:?}", map);
+
+    unsafe {
+        APP_CONFIG = Some(map);
+    };
+}
+
+fn read_setting(key: &str) -> Option<String> {
+    // This is safe because we are only reading
+    unsafe {
+        if let Some(map) = &APP_CONFIG {
+            if let Some(value) = map.get(key) {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// parse_url guarantees that clipboard contains a URL with a domain name and returns the URL instance
@@ -90,7 +156,44 @@ fn strip_tracking(url: &url::Url) -> url::Url {
     }
 }
 
+fn enabled_prefixes() -> Vec<String> {
+    let mut prefixes = vec![];
+    if let Some(prefixes_csv) = read_setting("YOUTUBE_PREFIXES") {
+        if prefixes_csv == "" {
+            return prefixes;
+        }
+        for prefix in prefixes_csv.split(',') {
+            prefixes.push(format!("/{}/", prefix.to_string()));
+        }
+    }
+    prefixes
+}
+
+fn map_youtube_prefix(url: &url::Url, prefix: &str) -> Option<url::Url> {
+    if url.path().starts_with(prefix) {
+        let mut new_url = url.clone();
+        new_url.set_host(Some("youtu.be")).unwrap();
+        let video_id = url
+            .path()
+            .strip_prefix(prefix)
+            .unwrap()
+            .split('/')
+            .next()
+            .unwrap();
+        new_url.set_path(&format!("/{}", video_id));
+        return Some(new_url);
+    }
+    None
+}
+
 fn strip_full_youtube(url: &url::Url) -> url::Url {
+    let prefixes = enabled_prefixes();
+    for prefix in prefixes {
+        if let Some(new_url) = map_youtube_prefix(&url, &prefix) {
+            return strip_tracking(&new_url);
+        }
+    }
+
     if let Some(video_id) = get_query_value(url, "v") {
         let mut new_url = url.clone();
         new_url.set_host(Some("youtu.be")).unwrap();
@@ -134,6 +237,14 @@ fn get_query_value(url: &url::Url, var: &str) -> Option<String> {
 mod tests {
     use super::*;
 
+    fn init_test_settings() {
+        let mut app_config = HashMap::new();
+        app_config.insert("YOUTUBE_PREFIXES".to_string(), "live,shorts".to_string());
+        unsafe {
+            APP_CONFIG = Some(app_config);
+        }
+    }
+
     #[test]
     fn test_strip_params() {
         let url = Url::parse("https://example.com/path?foo=bar&baz=qux").unwrap();
@@ -147,38 +258,39 @@ mod tests {
 
     #[test]
     fn test_strip_tracking() {
-        let url1 =
-            Url::parse("https://www.youtube.com/watch?v=1234&si=stripped&feature=share").unwrap();
-        let stripped_url1 = strip_tracking(&url1);
-        assert_eq!(
-            stripped_url1.as_str(),
-            "https://youtu.be/1234?feature=share",
-            "Stripped URL is incorrect"
-        );
+        init_test_settings();
 
-        let url2 =
-            Url::parse("https://music.youtube.com/watch?v=5678&si=stripped&feature=share").unwrap();
-        let stripped_url2 = strip_tracking(&url2);
-        assert_eq!(
-            stripped_url2.as_str(),
-            "https://music.youtube.com/watch?v=5678&feature=share",
-            "Stripped URL is incorrect"
-        );
+        let test_cases = vec![
+            (
+                "https://www.youtube.com/watch?v=1234&si=stripped&feature=share",
+                "https://youtu.be/1234?feature=share",
+            ),
+            (
+                "https://music.youtube.com/watch?v=5678&si=stripped&feature=share",
+                "https://music.youtube.com/watch?v=5678&feature=share",
+            ),
+            (
+                "https://example.com/path?utm_source=foo&utm_medium=bar",
+                "https://example.com/path",
+            ),
+            (
+                "https://youtu.be/1234?si=stripped&t=123",
+                "https://youtu.be/1234?t=123",
+            ),
+            (
+                "https://youtube.com/live/xxxxxxxxxx?feature=share",
+                "https://youtu.be/xxxxxxxxxx?feature=share",
+            ),
+            (
+                "https://youtube.com/shorts/xxxxxxxxxx?feature=share",
+                "https://youtu.be/xxxxxxxxxx?feature=share",
+            ),
+        ];
 
-        let url3 = Url::parse("https://example.com/path?utm_source=foo&utm_medium=bar").unwrap();
-        let stripped_url3 = strip_tracking(&url3);
-        assert_eq!(
-            stripped_url3.as_str(),
-            "https://example.com/path",
-            "Stripped URL is incorrect"
-        );
-
-        let url4: Url = Url::parse("https://youtu.be/1234?si=stripped&t=123").unwrap();
-        let stripped_url4 = strip_tracking(&url4);
-        assert_eq!(
-            stripped_url4.as_str(),
-            "https://youtu.be/1234?t=123",
-            "Stripped URL is incorrect"
-        );
+        for (input, expected) in test_cases {
+            let url = Url::parse(input).unwrap();
+            let stripped_url = strip_tracking(&url);
+            assert_eq!(stripped_url.as_str(), expected, "Stripped URL is incorrect");
+        }
     }
 }

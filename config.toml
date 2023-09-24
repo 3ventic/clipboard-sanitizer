@@ -1,0 +1,3 @@
+# Comma-separated list of URL path prefixes to turn youtube.com/<prefix>/<video_id> to youtu.be/<video_id>
+# Useful for shorts, if you don't like the shorts player, or certain creator URLs like live if you need to quickly copy them somewhere
+YOUTUBE_PREFIXES = "live,shorts"
