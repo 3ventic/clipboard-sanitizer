@@ -26,6 +26,7 @@ use log::{debug, error, info};
 use url::Url;
 
 const YOUTUBE_TRACKING_PARAMS: [&str; 1] = ["si"];
+const TWITTER_TRACKING_PARAMS: [&str; 2] = ["s", "t"];
 const COMMON_TRACKING_PARAMS: [&str; 5] = [
     "utm_source",
     "utm_medium",
@@ -150,6 +151,8 @@ fn strip_tracking(url: &url::Url) -> url::Url {
     match url.domain().unwrap() {
         "www.youtube.com" => strip_full_youtube(&url),
         "youtube.com" => strip_full_youtube(&url),
+        "twitter.com" => strip_params(&url, TWITTER_TRACKING_PARAMS.to_vec()),
+        "x.com" => strip_params(&url, TWITTER_TRACKING_PARAMS.to_vec()),
         "youtu.be" => strip_params(&url, YOUTUBE_TRACKING_PARAMS.to_vec()),
         "music.youtube.com" => strip_params(&url, YOUTUBE_TRACKING_PARAMS.to_vec()),
         _ => strip_params(&url, COMMON_TRACKING_PARAMS.to_vec()),
@@ -284,6 +287,10 @@ mod tests {
             (
                 "https://youtube.com/shorts/xxxxxxxxxx?feature=share",
                 "https://youtu.be/xxxxxxxxxx?feature=share",
+            ),
+            (
+                "https://twitter.com/discord/status/1702362670836621351?t=stripped&s=19",
+                "https://twitter.com/discord/status/1702362670836621351",
             ),
         ];
 

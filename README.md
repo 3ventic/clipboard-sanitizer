@@ -4,6 +4,7 @@ Monitors your clipboard for URLs and automatically removes tracking parameters f
 
 Currently suppots:
 - YouTube
+- X/Twitter
 - Generic utm tracking (most news sites)
 
 Binaries available via releases.
