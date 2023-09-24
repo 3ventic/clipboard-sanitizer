@@ -142,7 +142,7 @@ fn parse_url(clipboard: &mut Clipboard) -> Option<url::Url> {
             debug!("Clipboard content is not a URL: {}", potential_url);
         }
     } else {
-        error!("Failed to get clipboard: {}", content.unwrap_err());
+        debug!("Failed to get clipboard: {}", content.unwrap_err());
     }
     None
 }
