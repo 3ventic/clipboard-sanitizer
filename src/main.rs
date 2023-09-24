@@ -25,7 +25,7 @@ use dirs::config_dir;
 use log::{debug, error, info};
 use url::Url;
 
-const YOUTUBE_TRACKING_PARAMS: [&str; 1] = ["si"];
+const YOUTUBE_TRACKING_PARAMS: [&str; 2] = ["si", "feature"];
 const TWITTER_TRACKING_PARAMS: [&str; 2] = ["s", "t"];
 const COMMON_TRACKING_PARAMS: [&str; 5] = [
     "utm_source",
@@ -266,11 +266,11 @@ mod tests {
         let test_cases = vec![
             (
                 "https://www.youtube.com/watch?v=1234&si=stripped&feature=share",
-                "https://youtu.be/1234?feature=share",
+                "https://youtu.be/1234",
             ),
             (
                 "https://music.youtube.com/watch?v=5678&si=stripped&feature=share",
-                "https://music.youtube.com/watch?v=5678&feature=share",
+                "https://music.youtube.com/watch?v=5678",
             ),
             (
                 "https://example.com/path?utm_source=foo&utm_medium=bar",
@@ -282,11 +282,11 @@ mod tests {
             ),
             (
                 "https://youtube.com/live/xxxxxxxxxx?feature=share",
-                "https://youtu.be/xxxxxxxxxx?feature=share",
+                "https://youtu.be/xxxxxxxxxx",
             ),
             (
                 "https://youtube.com/shorts/xxxxxxxxxx?feature=share",
-                "https://youtu.be/xxxxxxxxxx?feature=share",
+                "https://youtu.be/xxxxxxxxxx",
             ),
             (
                 "https://twitter.com/discord/status/1702362670836621351?t=stripped&s=19",
